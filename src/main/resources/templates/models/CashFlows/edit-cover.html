@@ -9,7 +9,7 @@
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Unggah Bukti Transaksi</h5>
+            <h5 class="modal-title">Upload Foto Bukti</h5>
             <button
               type="button"
               class="btn-close"
@@ -18,23 +18,44 @@
           </div>
 
           <div class="modal-body">
-            <input type="hidden" th:field="*{cashFlowId}" id="editCoverFlowId" />
+            <!-- Alert Error -->
+            <div
+              th:if="${error}"
+              class="alert alert-danger alert-dismissible fade show"
+              role="alert"
+            >
+              <span th:text="${error}"></span>
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="alert"
+              ></button>
+            </div>
+
+            <!-- Hidden ID CashFlow -->
+            <input type="hidden" th:field="*{id}" />
 
             <div class="mb-3">
-              <label class="form-label">Pilih File Bukti (Max 5MB)</label>
+              <label class="form-label">
+                Pilih Foto (Struk/Bukti Transfer/Nota) 
+                <span class="text-danger">*</span>
+              </label>
               <input
                 type="file"
                 class="form-control"
-                th:field="*{attachmentFile}"
-                id="editCoverFlowFile"
+                th:field="*{coverFile}"
+                id="editCoverCashFlowFile"
+                accept="image/*"
               />
+              <small class="text-muted">
+                Format: JPG, PNG, GIF, WEBP (Max 5MB)
+              </small>
 
               <div
                 class="text-danger"
-                th:if="${#fields.hasErrors('attachmentFile')}"
-                th:errors="*{attachmentFile}"
+                th:if="${#fields.hasErrors('coverFile')}"
+                th:errors="*{coverFile}"
               ></div>
-              <small class="form-text text-muted">Hanya menerima gambar (JPEG, PNG, GIF, WEBP).</small>
             </div>
           </div>
 
@@ -47,8 +68,8 @@
               Batal
             </button>
 
-            <button type="submit" class="btn btn-primary" id="btnSaveAttachment">
-              Unggah dan Simpan
+            <button type="submit" class="btn btn-primary">
+              Upload Foto
             </button>
           </div>
         </div>

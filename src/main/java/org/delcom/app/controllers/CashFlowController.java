@@ -1,149 +1,191 @@
 package org.delcom.app.controllers;
 
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import org.delcom.app.configs.ApiResponse;
 import org.delcom.app.configs.AuthContext;
 import org.delcom.app.entities.CashFlow;
 import org.delcom.app.entities.User;
 import org.delcom.app.services.CashFlowService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.UUID;
-
-/**
- * Kontroler REST untuk mengelola operasi Cash Flow (Pemasukan/Pengeluaran).
- * Semua operasi dicakup berdasarkan pengguna yang sedang terautentikasi.
- */
 @RestController
 @RequestMapping("/api/cashflows")
 public class CashFlowController {
-
+    
     private final CashFlowService cashFlowService;
-    private final AuthContext authContext;
 
     @Autowired
-    public CashFlowController(CashFlowService cashFlowService, AuthContext authContext) {
+    protected AuthContext authContext;
+
+    public CashFlowController(CashFlowService cashFlowService) {
         this.cashFlowService = cashFlowService;
-        this.authContext = authContext;
     }
 
-    /**
-     * Mengambil semua catatan Cash Flow (Pemasukan/Pengeluaran) untuk pengguna yang sedang login.
-     * @return ResponseEntity dengan list CashFlow atau 401 Unauthorized jika tidak terautentikasi.
-     */
-    @GetMapping
-    public ResponseEntity<?> getFlows() {
-        if (!authContext.isAuthenticated()) {
-            return new ResponseEntity<>("Unauthorized. User must be logged in.", HttpStatus.UNAUTHORIZED);
-        }
-
-        User user = authContext.getAuthUser();
-        // Memanggil service untuk mengambil semua cash flow berdasarkan ID pengguna
-        // PERBAIKAN: Menggunakan getAllCashFlows(userId, keyword)
-        List<CashFlow> flows = cashFlowService.getAllCashFlows(user.getId(), null); // keyword null untuk ambil semua
-        return new ResponseEntity<>(flows, HttpStatus.OK);
-    }
-
-    /**
-     * Membuat catatan Cash Flow baru.
-     * @param flow Data CashFlow baru (tanpa ID/User ID).
-     * @return ResponseEntity dengan CashFlow yang telah disimpan atau error.
-     */
+    // Menambahkan cash flow baru
+    // -------------------------------
     @PostMapping
-    public ResponseEntity<?> createFlow(@RequestBody CashFlow flow) {
+    public ResponseEntity<ApiResponse<Map<String, UUID>>> createCashFlow(@RequestBody CashFlow reqCashFlow) {
+
+        // Validasi input
+        if (reqCashFlow.getType() == null || reqCashFlow.getType().isEmpty()) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data type tidak valid", null));
+        } else if (reqCashFlow.getSource() == null || reqCashFlow.getSource().isEmpty()) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data source tidak valid", null));
+        } else if (reqCashFlow.getLabel() == null || reqCashFlow.getLabel().isEmpty()) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data label tidak valid", null));
+        } else if (reqCashFlow.getAmount() == null || reqCashFlow.getAmount() <= 0) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data amount tidak valid", null));
+        } else if (reqCashFlow.getDescription() == null || reqCashFlow.getDescription().isEmpty()) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data description tidak valid", null));
+        }
+
+        // Validasi autentikasi
         if (!authContext.isAuthenticated()) {
-            return new ResponseEntity<>("Unauthorized. User must be logged in.", HttpStatus.UNAUTHORIZED);
+            return ResponseEntity.status(403).body(new ApiResponse<>("fail", "User tidak terautentikasi", null));
         }
+        User authUser = authContext.getAuthUser();
 
-        // Validasi dasar
-        // PERHATIAN: Asumsi CashFlow di Entity dan Service menggunakan Integer untuk amount
-        // Jika di DTO dari RequestBody menggunakan Double, perlu konversi.
-        if (flow.getType() == null || flow.getAmount() <= 0 || flow.getDescription() == null || flow.getDescription().isEmpty()) {
-             return new ResponseEntity<>("Invalid cash flow data. Type, amount, and description are required.", HttpStatus.BAD_REQUEST);
-        }
+        CashFlow newCashFlow = cashFlowService.createCashFlow(
+            authUser.getId(), 
+            reqCashFlow.getType(), 
+            reqCashFlow.getSource(), 
+            reqCashFlow.getLabel(), 
+            reqCashFlow.getAmount(), 
+            reqCashFlow.getDescription()
+        );
 
-        User user = authContext.getAuthUser();
+        return ResponseEntity.ok(new ApiResponse<>(
+                "success",
+                "Berhasil menambahkan data",
+                Map.of("id", newCashFlow.getId())));
+    }
+
+    // Mendapatkan semua cash flow dengan opsi pencarian
+    // -------------------------------
+    @GetMapping
+    public ResponseEntity<ApiResponse<Map<String, List<CashFlow>>>> getAllCashFlows(
+            @RequestParam(required = false) String search) {
         
-        // PERBAIKAN: Menggunakan createCashFlow() dengan parameter eksplisit dari Service
-        // Pastikan tipe data 'amount' sesuai antara CashFlow (dari @RequestBody) dan service (Integer)
-        CashFlow createdFlow = cashFlowService.createCashFlow(
-            user.getId(),
-            flow.getType(),
-            flow.getSource(),
-            flow.getLabel(),
-            flow.getAmount().intValue(), // Mengonversi Double ke Integer, asumsikan jumlah tidak ada desimal
-            flow.getDescription()
-        );
-
-        if (createdFlow == null) {
-            return new ResponseEntity<>("Failed to create cash flow record.", HttpStatus.INTERNAL_SERVER_ERROR);
+        // Validasi autentikasi
+        if (!authContext.isAuthenticated()) {
+            return ResponseEntity.status(403).body(new ApiResponse<>("fail", "User tidak terautentikasi", null));
         }
+        User authUser = authContext.getAuthUser();
 
-        return new ResponseEntity<>(createdFlow, HttpStatus.CREATED);
+        List<CashFlow> cashFlows = cashFlowService.getAllCashFlows(authUser.getId(), search);
+        return ResponseEntity.ok(new ApiResponse<>(
+                "success",
+                "Berhasil mengambil data",
+                Map.of("cash_flows", cashFlows)));
     }
 
-    /**
-     * Mengubah catatan Cash Flow yang sudah ada.
-     * @param id ID dari catatan Cash Flow yang akan diubah.
-     * @param updatedFlow Data CashFlow yang diupdate.
-     * @return ResponseEntity dengan CashFlow yang diupdate atau error.
-     */
+    // Mendapatkan cash flow berdasarkan ID
+    // -------------------------------
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<Map<String, CashFlow>>> getCashFlowById(@PathVariable UUID id) {
+        
+        // Validasi autentikasi
+        if (!authContext.isAuthenticated()) {
+            return ResponseEntity.status(403).body(new ApiResponse<>("fail", "User tidak terautentikasi", null));
+        }
+        User authUser = authContext.getAuthUser();
+
+        CashFlow cashFlow = cashFlowService.getCashFlowById(authUser.getId(), id);
+        if (cashFlow == null) {
+            return ResponseEntity.status(404).body(new ApiResponse<>("fail", "Data cash flow tidak ditemukan", null));
+        }
+
+        return ResponseEntity.ok(new ApiResponse<>(
+                "success",
+                "Berhasil mengambil data",
+                Map.of("cash_flow", cashFlow)));
+    }
+
+    // Mendapatkan semua label
+    // -------------------------------
+    @GetMapping("/labels")
+    public ResponseEntity<ApiResponse<Map<String, List<String>>>> getCashFlowLabels() {
+        
+        // Validasi autentikasi
+        if (!authContext.isAuthenticated()) {
+            return ResponseEntity.status(403).body(new ApiResponse<>("fail", "User tidak terautentikasi", null));
+        }
+        User authUser = authContext.getAuthUser();
+
+        List<String> labels = cashFlowService.getAllLabels(authUser.getId());
+        return ResponseEntity.ok(new ApiResponse<>(
+                "success",
+                "Berhasil mengambil data",
+                Map.of("labels", labels)));
+    }
+
+    // Memperbarui cash flow berdasarkan ID
+    // -------------------------------
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateFlow(@PathVariable UUID id, @RequestBody CashFlow updatedFlow) {
+    public ResponseEntity<ApiResponse<CashFlow>> updateCashFlow(@PathVariable UUID id, @RequestBody CashFlow reqCashFlow) {
+
+        // Validasi input
+        if (reqCashFlow.getType() == null || reqCashFlow.getType().isEmpty()) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data type tidak valid", null));
+        } else if (!reqCashFlow.getType().equals("Inflow") && !reqCashFlow.getType().equals("Outflow")) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Type harus Inflow atau Outflow", null));
+        } else if (reqCashFlow.getSource() == null || reqCashFlow.getSource().isEmpty()) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data source tidak valid", null));
+        } else if (reqCashFlow.getLabel() == null || reqCashFlow.getLabel().isEmpty()) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data label tidak valid", null));
+        } else if (reqCashFlow.getAmount() == null || reqCashFlow.getAmount() <= 0) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data amount tidak valid", null));
+        } else if (reqCashFlow.getDescription() == null || reqCashFlow.getDescription().isEmpty()) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data description tidak valid", null));
+        }
+
+        // Validasi autentikasi
         if (!authContext.isAuthenticated()) {
-            return new ResponseEntity<>("Unauthorized. User must be logged in.", HttpStatus.UNAUTHORIZED);
+            return ResponseEntity.status(403).body(new ApiResponse<>("fail", "User tidak terautentikasi", null));
         }
+        User authUser = authContext.getAuthUser();
 
-        // Validasi dasar
-        // PERHATIAN: Asumsi CashFlow di Entity dan Service menggunakan Integer untuk amount
-        if (updatedFlow.getType() == null || updatedFlow.getAmount() <= 0 || updatedFlow.getDescription() == null || updatedFlow.getDescription().isEmpty()) {
-             return new ResponseEntity<>("Invalid cash flow data. Type, amount, and description are required.", HttpStatus.BAD_REQUEST);
-        }
-
-        User user = authContext.getAuthUser();
-
-        // Panggil service untuk mengupdate, pastikan ID pengguna cocok untuk keamanan
-        // PERBAIKAN: Menggunakan updateCashFlow() dengan parameter eksplisit dari Service
-        CashFlow result = cashFlowService.updateCashFlow(
-            id,
-            user.getId(),
-            updatedFlow.getType(),
-            updatedFlow.getSource(),
-            updatedFlow.getLabel(),
-            updatedFlow.getAmount().intValue(), // Mengonversi Double ke Integer, asumsikan jumlah tidak ada desimal
-            updatedFlow.getDescription()
+        CashFlow updatedCashFlow = cashFlowService.updateCashFlow(
+            authUser.getId(), 
+            id, 
+            reqCashFlow.getType(), 
+            reqCashFlow.getSource(), 
+            reqCashFlow.getLabel(), 
+            reqCashFlow.getAmount(), 
+            reqCashFlow.getDescription()
         );
 
-        if (result == null) {
-            // Asumsi service mengembalikan null jika tidak ditemukan atau user ID tidak cocok
-            return new ResponseEntity<>("Cash Flow record not found or access denied.", HttpStatus.NOT_FOUND);
+        if (updatedCashFlow == null) {
+            return ResponseEntity.status(404).body(new ApiResponse<>("fail", "Data cash flow tidak ditemukan", null));
         }
 
-        return new ResponseEntity<>(result, HttpStatus.OK);
+        return ResponseEntity.ok(new ApiResponse<>("success", "Berhasil memperbarui data", null));
     }
 
-    /**
-     * Menghapus catatan Cash Flow.
-     * @param id ID dari catatan Cash Flow yang akan dihapus.
-     * @return ResponseEntity 204 No Content atau error.
-     */
+    // Menghapus cash flow berdasarkan ID
+    // -------------------------------
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteFlow(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<String>> deleteCashFlow(@PathVariable UUID id) {
+        
+        // Validasi autentikasi
         if (!authContext.isAuthenticated()) {
-            return new ResponseEntity<>("Unauthorized. User must be logged in.", HttpStatus.UNAUTHORIZED);
+            return ResponseEntity.status(403).body(new ApiResponse<>("fail", "User tidak terautentikasi", null));
+        }
+        User authUser = authContext.getAuthUser();
+
+        boolean status = cashFlowService.deleteCashFlow(authUser.getId(), id);
+        if (!status) {
+            return ResponseEntity.status(404).body(new ApiResponse<>("fail", "Data cash flow tidak ditemukan", null));
         }
 
-        User user = authContext.getAuthUser();
-
-        // Panggil service untuk menghapus, pastikan ID pengguna cocok untuk keamanan
-        boolean deleted = cashFlowService.deleteCashFlow(id, user.getId());
-
-        if (deleted) {
-            return new ResponseEntity<>(HttpStatus.NO_CONTENT); // 204 No Content
-        } else {
-            return new ResponseEntity<>("Cash Flow record not found or access denied.", HttpStatus.NOT_FOUND);
-        }
+        return ResponseEntity.ok(new ApiResponse<>(
+                "success",
+                "Data cash flow berhasil dihapus",
+                null));
     }
 }

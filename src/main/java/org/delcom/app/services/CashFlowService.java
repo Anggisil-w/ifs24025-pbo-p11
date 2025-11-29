@@ -3,118 +3,80 @@ package org.delcom.app.services;
 import org.delcom.app.entities.CashFlow;
 import org.delcom.app.repositories.CashFlowRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 import java.util.UUID;
-import java.util.Optional;
 
 @Service
 public class CashFlowService {
 
     private final CashFlowRepository cashFlowRepository;
 
-    // Constructor Injection
     public CashFlowService(CashFlowRepository cashFlowRepository) {
         this.cashFlowRepository = cashFlowRepository;
     }
 
-    // 1. CREATE
-    /**
-     * Membuat CashFlow baru untuk user tertentu.
-     * @param userId ID pengguna yang membuat transaksi.
-     * @return CashFlow yang baru disimpan.
-     */
-    public CashFlow createCashFlow(UUID userId, String type, String source, String label, Integer amount, String description) {
-        // Gunakan konstruktor baru yang menerima userId
-        CashFlow newFlow = new CashFlow(userId, type, source, label, amount, description);
-        
-        // Simpan objek baru ke database
-        return cashFlowRepository.save(newFlow);
+    // Membuat cash flow baru
+    public CashFlow createCashFlow(UUID userId, String type, String source, String label, Long amount, String description) {
+        CashFlow cashFlow = new CashFlow(userId, type, source, label, amount, description);
+        return cashFlowRepository.save(cashFlow);
     }
 
-    // 2. READ ALL / SEARCH
-    /**
-     * Mengambil semua CashFlow milik user, opsional difilter berdasarkan keyword.
-     * @param userId ID pengguna.
-     * @param keyword Kata kunci untuk pencarian (dapat berupa null).
-     * @return Daftar CashFlow.
-     */
-    public List<CashFlow> getAllCashFlows(UUID userId, String keyword) {
-        // Jika keyword valid, gunakan pencarian dengan filter userId
-        if (keyword != null && !keyword.trim().isEmpty()) {
-            return cashFlowRepository.findByKeyword(userId, keyword.trim()); 
+    // Mendapatkan semua cash flow berdasarkan user ID dengan opsi pencarian
+    public List<CashFlow> getAllCashFlows(UUID userId, String search) {
+        if (search != null && !search.isEmpty()) {
+            return cashFlowRepository.findByUserIdWithSearch(userId, search);
         }
-        
-        // Jika keyword kosong, ambil semua CashFlow yang dimiliki oleh user tersebut.
-        // Asumsi: findByKeyword dapat menangani string kosong, atau Anda harus menambahkan
-        // method 'findByUserId(UUID userId)' di CashFlowRepository.
-        return cashFlowRepository.findByKeyword(userId, "");
+        return cashFlowRepository.findByUserId(userId);
     }
 
-    // 3. READ BY ID
-    /**
-     * Mengambil CashFlow berdasarkan ID, memastikan transaksi milik user.
-     * @param id ID transaksi CashFlow.
-     * @param userId ID pengguna untuk otorisasi.
-     * @return CashFlow jika ditemukan dan dimiliki user, atau null.
-     */
-    public CashFlow getCashFlowById(UUID id, UUID userId) {
-        // Menggunakan method yang memfilter berdasarkan userId DAN id transaksi
-        return cashFlowRepository.findByUserIdAndId(userId, id); 
+    // Mendapatkan cash flow berdasarkan ID
+    public CashFlow getCashFlowById(UUID userId, UUID id) {
+        return cashFlowRepository.findByIdAndUserId(id, userId).orElse(null);
     }
 
-    // 4. GET LABELS
-    /**
-     * Mengambil daftar label unik yang digunakan oleh user.
-     * @param userId ID pengguna.
-     * @return Daftar String label unik.
-     */
-    public List<String> getCashFlowLabels(UUID userId) {
-        // Menggunakan method untuk menemukan label unik milik user
-        return cashFlowRepository.findDistinctLabels(userId); 
+    // Mendapatkan semua label unik
+    public List<String> getAllLabels(UUID userId) {
+        return cashFlowRepository.findDistinctLabelsByUserId(userId);
     }
 
-    // 5. UPDATE
-    /**
-     * Memperbarui CashFlow yang ada, memastikan transaksi milik user.
-     * @param id ID transaksi CashFlow yang akan diperbarui.
-     * @param userId ID pengguna untuk otorisasi.
-     * @return CashFlow yang telah diperbarui, atau null jika tidak ditemukan/bukan milik user.
-     */
-    public CashFlow updateCashFlow(UUID id, UUID userId, String type, String source, String label, Integer amount, String description) {
-        // 1. Cari data lama dan verifikasi kepemilikan
-        CashFlow existingFlow = cashFlowRepository.findByUserIdAndId(userId, id);
-
-        if (existingFlow != null) {
-            // 2. Perbarui field-field
-            existingFlow.setType(type);
-            existingFlow.setSource(source);
-            existingFlow.setLabel(label);
-            existingFlow.setAmount(amount);
-            existingFlow.setDescription(description);
-            
-            // 3. Simpan perubahan (onUpdate() ditangani oleh @PreUpdate di Entity)
-            return cashFlowRepository.save(existingFlow);
+    // Memperbarui cash flow
+    public CashFlow updateCashFlow(UUID userId, UUID id, String type, String source, String label, Long amount, String description) {
+        CashFlow existingCashFlow = cashFlowRepository.findByIdAndUserId(id, userId).orElse(null);
+        if (existingCashFlow == null) {
+            return null;
         }
-        return null;
+
+        existingCashFlow.setType(type);
+        existingCashFlow.setSource(source);
+        existingCashFlow.setLabel(label);
+        existingCashFlow.setAmount(amount);
+        existingCashFlow.setDescription(description);
+
+        return cashFlowRepository.save(existingCashFlow);
     }
 
-    // 6. DELETE
-    /**
-     * Menghapus CashFlow berdasarkan ID, memastikan transaksi milik user.
-     * @param id ID transaksi CashFlow yang akan dihapus.
-     * @param userId ID pengguna untuk otorisasi.
-     * @return true jika berhasil dihapus, false jika transaksi tidak ditemukan/bukan milik user.
-     */
-    public boolean deleteCashFlow(UUID id, UUID userId) {
-        // Cek apakah data ada dan milik user
-        if (cashFlowRepository.existsByUserIdAndId(userId, id)) {
-            cashFlowRepository.deleteById(id);
-            return true;
+    // ==========================
+    // Method untuk update cover
+    // ==========================
+    public void updateCover(UUID id, String fileName) {
+        CashFlow cashFlow = cashFlowRepository.findById(id).orElse(null);
+        if (cashFlow != null) {
+            cashFlow.setCover(fileName);
+            cashFlowRepository.save(cashFlow);
         }
-        return false;
     }
 
-    // --- METODE STUB DIHAPUS ---
-    // Metode 'createFlow', 'updateFlow', dan 'getFlowsByUserId' telah dihapus
-    // karena sudah diwakili oleh implementasi di atas.
+    // Menghapus cash flow
+    @Transactional
+    public boolean deleteCashFlow(UUID userId, UUID id) {
+        CashFlow existingCashFlow = cashFlowRepository.findByIdAndUserId(id, userId).orElse(null);
+        if (existingCashFlow == null) {
+            return false;
+        }
+
+        cashFlowRepository.deleteByIdAndUserId(id, userId);
+        return true;
+    }
 }

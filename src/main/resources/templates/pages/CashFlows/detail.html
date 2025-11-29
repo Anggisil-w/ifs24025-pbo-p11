@@ -1,103 +1,165 @@
 <!DOCTYPE html>
 <html
-  xmlns:th="http://www.thymeleaf.org"
-  xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-  layout:decorate="~{layouts/base}"
-  lang="id"
+  xmlns:th="http://www.thymeleaf.org"
+  xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+  layout:decorate="~{layouts/base}"
+  lang="id"
 >
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Detail Cash Flow</title>
-  </head>
-  <body>
-    <div layout:fragment="content" class="mt-3">
-      <div class="card">
-        <div class="card-header d-flex bg-light sticky-top">
-          <div class="flex-fill">
-            <a th:href="@{/}" class="text-decoration-none">
-              <small class="text-muted"> &lt; Kembali </small>
-            </a>
-            <h3>
-              <span th:text="${cashFlow.label}">Label Transaksi</span>
-              
-                            <span th:if="${cashFlow.type == 'INCOME'}" class="badge bg-success">
-                Pemasukan
-              </span>
-              <span th:if="${cashFlow.type == 'EXPENSE'}" class="badge bg-danger">
-                Pengeluaran
-              </span>
-            </h3>
-          </div>
-          <div>
-            <div>
-              <a th:href="@{/auth/logout}" class="btn btn-sm btn-danger w-100"
-                >Keluar</a
-              >
-            </div>
-            <div>
-                            <button
-                class="btn btn-sm btn-warning mt-2"
-                data-bs-target="#editCoverCashFlowModal"
-                data-bs-toggle="modal"
-                th:attr="data-flow-id=${cashFlow.id}"
-              >
-                Unggah Bukti
-              </button>
-            </div>
-          </div>
-        </div>
-        <div class="card-body">
-            <div class="mb-3">
-                <h4>Jumlah: <span th:text="${#numbers.formatCurrency(cashFlow.amount)}">Rp 100.000</span></h4>
-                <p class="text-muted">Sumber: <span th:text="${cashFlow.source}">Bank</span></p>
-                <p class="text-muted">Dibuat pada: <span th:text="${#temporals.format(cashFlow.createdAt, 'dd MMMM yyyy HH:mm')}"></span></p>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Detail Cash Flow</title>
+  </head>
+  <body>
+    <div layout:fragment="content" class="mt-3">
+      <div class="card">
+        <div class="card-header d-flex bg-light sticky-top">
+          <div class="flex-fill">
+            <a th:href="@{/cashflows}" class="text-decoration-none">
+              <small class="text-muted"> &lt; Kembali </small>
+            </a>
+            <h3>
+              [[${cashFlow.source}]]
+              <span th:if="${cashFlow.type == 'Inflow'}" class="badge bg-success">
+                Pemasukan
+              </span>
+              <span th:if="${cashFlow.type == 'Outflow'}" class="badge bg-danger">
+                Pengeluaran
+              </span>
+            </h3>
+          </div>
+          <div>
+            <div class="mb-2">
+              <a th:href="@{/auth/logout}" class="btn btn-sm btn-danger w-100"
+                >Keluar</a
+              >
             </div>
-            
-            <hr />
-            
-                        <h5 class="mt-4">Bukti Transaksi</h5>
-            <div th:if="${cashFlow.attachmentPath}">
-              <img
-                th:src="@{'/cashflows/cover/' + ${cashFlow.attachmentPath}}"
-                alt="Bukti Transaksi"
-                style="max-width: 100%; height: auto;"
-                class="img-fluid rounded border p-2"
-              />
-            </div>
-            <div th:unless="${cashFlow.attachmentPath}">
-              <span class="text-muted">Belum ada bukti lampiran yang diunggah.</span>
-            </div>
-            
-            <hr />
-            
-                        <h5 class="mt-4">Deskripsi Detail</h5>
-            <p style="font-size: 18px" th:text="${cashFlow.description}"></p>
-        </div>
-      </div>
+            <div>
+              <button
+                class="btn btn-sm btn-warning"
+                data-bs-target="#editCoverCashFlowModal"
+                data-bs-toggle="modal"
+              >
+                Upload Foto
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <!-- Foto Bukti (Cover) -->
+          <div class="mb-4 text-center">
+            <div th:if="${cashFlow.cover}">
+              <img
+                th:src="@{'/cashflows/cover/' + ${cashFlow.cover}}"
+                alt="Foto Bukti"
+                class="img-fluid rounded shadow"
+                style="max-width: 100%; max-height: 500px;"
+              />
+            </div>
+            <div th:unless="${cashFlow.cover}" class="bg-light p-5 rounded">
+              <i class="bi bi-image" style="font-size: 4rem; color: #ccc;"></i>
+              <p class="text-muted mt-2">Belum ada foto bukti</p>
+            </div>
+          </div>
 
-            <div th:replace="~{models/cashflows/edit-cover :: editCoverCashFlowModal}"></div>
-    </div>
+          <hr />
 
-        <script layout:fragment="others-js">
-      document.addEventListener("DOMContentLoaded", function () {
-        /* Cek apakah modal edit cover perlu dibuka otomatis */
-        var editCoverModalOpen = "[[${editCoverModalOpen}]]" === "true";
-        if (editCoverModalOpen) {
-          var coverModal = new bootstrap.Modal(
-            document.getElementById("editCoverCashFlowModal")
-          );
-          coverModal.show();
-        }
-        
-        // JIKA Anda perlu mengisi ID Flow ke modal saat tombol diklik (Opsional)
-        var editCoverButton = document.querySelector('[data-bs-target="#editCoverCashFlowModal"]');
-        editCoverButton.addEventListener('click', function() {
-            var flowId = this.getAttribute('data-flow-id');
-            document.getElementById('editCoverFlowId').value = flowId;
-        });
+          <!-- Informasi Detail -->
+          <div class="row mb-4">
+            <div class="col-md-12">
+              <table class="table table-borderless">
+                <tbody>
+                  <tr>
+                    <th style="width: 200px;">Tipe</th>
+                    <td>
+                      <span 
+                        th:if="${cashFlow.type == 'Inflow'}" 
+                        class="badge bg-success"
+                        style="font-size: 1rem; padding: 0.5rem 1rem;"
+                      >
+                        💰 Pemasukan
+                      </span>
+                      <span 
+                        th:if="${cashFlow.type == 'Outflow'}" 
+                        class="badge bg-danger"
+                        style="font-size: 1rem; padding: 0.5rem 1rem;"
+                      >
+                        💸 Pengeluaran
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Sumber</th>
+                    <td>
+                      <h5 class="mb-0" th:text="${cashFlow.source}"></h5>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Label</th>
+                    <td>
+                      <span 
+                        class="badge bg-secondary" 
+                        th:text="${cashFlow.label}"
+                        style="font-size: 0.9rem; padding: 0.4rem 0.8rem;"
+                      ></span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Jumlah</th>
+                    <td>
+                      <h4 
+                        class="mb-0" 
+                        th:text="${'Rp ' + #numbers.formatDecimal(cashFlow.amount, 0, 'COMMA', 0, 'POINT')}"
+                        th:classappend="${cashFlow.type == 'Inflow'} ? 'text-success' : 'text-danger'"
+                      ></h4>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Deskripsi</th>
+                    <td>
+                      <p class="mb-0" style="font-size: 1.1rem;" th:text="${cashFlow.description}"></p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Dibuat pada</th>
+                    <td th:text="${#temporals.format(cashFlow.createdAt, 'd MMMM yyyy, HH:mm')}"></td>
+                  </tr>
+                  <tr>
+                    <th>Diubah pada</th>
+                    <td th:text="${#temporals.format(cashFlow.updatedAt, 'd MMMM yyyy, HH:mm')}"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-      });
-    </script>
-  </body>
+          <hr>
+
+          <!-- Tombol Aksi -->
+          <div class="d-flex gap-2">
+            <a th:href="@{/cashflows}" class="btn btn-secondary">
+              <i class="bi bi-arrow-left"></i> Kembali ke Daftar
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Upload Cover -->
+      <div th:replace="~{models/cashflows/edit-cover :: editCoverCashFlowModal}"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script layout:fragment="others-js">
+      document.addEventListener("DOMContentLoaded", function () {
+        /* Cek apakah modal upload perlu dibuka otomatis */
+        var editCoverCashFlowModalOpen = "[[${editCoverCashFlowModalOpen}]]" === "true";
+        if (editCoverCashFlowModalOpen) {
+          var uploadModal = new bootstrap.Modal(
+            document.getElementById("editCoverCashFlowModal")
+          );
+          uploadModal.show();
+        }
+      });
+    </script>
+  </body>
 </html>
