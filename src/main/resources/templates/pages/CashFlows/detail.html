@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html
+  xmlns:th="http://www.thymeleaf.org"
+  xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+  layout:decorate="~{layouts/base}"
+  lang="id"
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Detail Cash Flow</title>
+  </head>
+  <body>
+    <div layout:fragment="content" class="mt-3">
+      <div class="card">
+        <div class="card-header d-flex bg-light sticky-top">
+          <div class="flex-fill">
+            <a th:href="@{/}" class="text-decoration-none">
+              <small class="text-muted"> &lt; Kembali </small>
+            </a>
+            <h3>
+              <span th:text="${cashFlow.label}">Label Transaksi</span>
+              
+                            <span th:if="${cashFlow.type == 'INCOME'}" class="badge bg-success">
+                Pemasukan
+              </span>
+              <span th:if="${cashFlow.type == 'EXPENSE'}" class="badge bg-danger">
+                Pengeluaran
+              </span>
+            </h3>
+          </div>
+          <div>
+            <div>
+              <a th:href="@{/auth/logout}" class="btn btn-sm btn-danger w-100"
+                >Keluar</a
+              >
+            </div>
+            <div>
+                            <button
+                class="btn btn-sm btn-warning mt-2"
+                data-bs-target="#editCoverCashFlowModal"
+                data-bs-toggle="modal"
+                th:attr="data-flow-id=${cashFlow.id}"
+              >
+                Unggah Bukti
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <h4>Jumlah: <span th:text="${#numbers.formatCurrency(cashFlow.amount)}">Rp 100.000</span></h4>
+                <p class="text-muted">Sumber: <span th:text="${cashFlow.source}">Bank</span></p>
+                <p class="text-muted">Dibuat pada: <span th:text="${#temporals.format(cashFlow.createdAt, 'dd MMMM yyyy HH:mm')}"></span></p>
+            </div>
+            
+            <hr />
+            
+                        <h5 class="mt-4">Bukti Transaksi</h5>
+            <div th:if="${cashFlow.attachmentPath}">
+              <img
+                th:src="@{'/cashflows/cover/' + ${cashFlow.attachmentPath}}"
+                alt="Bukti Transaksi"
+                style="max-width: 100%; height: auto;"
+                class="img-fluid rounded border p-2"
+              />
+            </div>
+            <div th:unless="${cashFlow.attachmentPath}">
+              <span class="text-muted">Belum ada bukti lampiran yang diunggah.</span>
+            </div>
+            
+            <hr />
+            
+                        <h5 class="mt-4">Deskripsi Detail</h5>
+            <p style="font-size: 18px" th:text="${cashFlow.description}"></p>
+        </div>
+      </div>
+
+            <div th:replace="~{models/cashflows/edit-cover :: editCoverCashFlowModal}"></div>
+    </div>
+
+        <script layout:fragment="others-js">
+      document.addEventListener("DOMContentLoaded", function () {
+        /* Cek apakah modal edit cover perlu dibuka otomatis */
+        var editCoverModalOpen = "[[${editCoverModalOpen}]]" === "true";
+        if (editCoverModalOpen) {
+          var coverModal = new bootstrap.Modal(
+            document.getElementById("editCoverCashFlowModal")
+          );
+          coverModal.show();
+        }
+        
+        // JIKA Anda perlu mengisi ID Flow ke modal saat tombol diklik (Opsional)
+        var editCoverButton = document.querySelector('[data-bs-target="#editCoverCashFlowModal"]');
+        editCoverButton.addEventListener('click', function() {
+            var flowId = this.getAttribute('data-flow-id');
+            document.getElementById('editCoverFlowId').value = flowId;
+        });
+
+      });
+    </script>
+  </body>
+</html>
